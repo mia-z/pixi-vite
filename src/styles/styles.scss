@@ -1,0 +1,17 @@
+#container {
+    display: flex;
+    justify-content: center;
+    flex-direction: row;
+    padding: 10px;
+    margin: 10px;
+}
+
+canvas {
+    border: 4px double black;
+    border-radius: 1%;
+    box-shadow: 0 0 15px 5px rgba(23, 23, 23, 0.5);
+}
+
+body {
+    background-image: url("./../assets/bgtile.jpg");
+}
