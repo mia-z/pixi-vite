@@ -1,5 +1,9 @@
-export const TileGravityAndCollision = (children) => {
+import { Container } from "pixi.js";
+import { HEIGHT } from "../main";
+
+export const TileGravityAndCollision = (children: Container[]) => {
     children.forEach(obj => {
+        //@ts-ignore-next-line
         if (obj.dragging) return;
 
         let colliding = false;
@@ -23,7 +27,7 @@ export const TileGravityAndCollision = (children) => {
         
         if (colliding) return;
     
-        let screenBottom = window.innerHeight > 750 ? 750 : window.innerHeight;
+        let screenBottom = HEIGHT;
         if (bottom < screenBottom) {
             obj.y += 6;
         } else {

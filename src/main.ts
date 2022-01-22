@@ -9,18 +9,25 @@ import {
 	Text,
 	LINE_JOIN, 
 	LINE_CAP, 
-	DisplayObject
+	DisplayObject,
+	Container,
+	LineStyle,
+	Sprite,
+	autoDetectRenderer,
 } from "pixi.js";
+
+import coin from "./public/coin.svg";
+import sword from "./public/gladius.svg";
+import enemy from "./public/skull-white-detail.svg";
+import potion from "./public/health-potion.svg";
+import shield from "./public/shield.svg";
 
 import "./styles/styles.css";
 
-Renderer.registerPlugin('batch', BatchRenderer);
-Renderer.registerPlugin('interaction', InteractionManager);
-Application.registerPlugin(AppLoaderPlugin);
-Application.registerPlugin(TickerPlugin);
-
 import TileSprite from "./abstractions/TileSprite";
 import TileGravityAndCollision from "./gamelogic/TileGravityAndCollision";
+import { TileFactory } from "./factories/TileFactory";
+import { EnemyTile } from "./Components/EnemyTile";
 
 let InitialLoadComplete: boolean = false;
 
@@ -29,21 +36,29 @@ let gHeight = window.innerHeight > 750 ? 750 : window.innerHeight; //Height to u
 
 let b = document.getElementById("body");
 const container = document.getElementById("container");
+console.log(gWidth);
+console.log(gHeight);
 
+
+
+export var HEIGHT = window.screen.availHeight > 750 ? 750 : window.screen.availHeight;
+export const WIDTH = window.screen.availWidth > 475 ? 475 : window.screen.availWidth;
+if (HEIGHT < 750) {
+	HEIGHT = Math.floor(HEIGHT - (window.screen.availWidth/6));
+}
 const app = new Application({
-	width: gWidth,
-	height: gHeight,
+	width: WIDTH,
+	height: HEIGHT,
 	backgroundColor: 0x303030,
 	//resolution: window.devicePixelRatio || 1,
-	//resizeTo: window
 });
 
-container?.appendChild(app.view);
+document.body.appendChild(app.view);
 
 //Might use this later
 // var TileContainer = new Container();
 // TileContainer.width = app.screen.width;
-// TileContainer.Height = app.screen.height;
+// TileContainer.height = app.screen.height;
 // TileContainer.x = 0;
 // TileContainer.y = app.screen.height - app.screen.width;
 
@@ -53,32 +68,48 @@ hud.x = 0;
 hud.y = 0;
 hud.lineStyle(2, 0x323232, 1);
 hud.beginFill(0x3F3F3F)
-hud.drawRect(0, 0, app.screen.width, app.screen.height - ((app.screen.width / 6) * 6));
+hud.drawRect(0, 0, WIDTH, HEIGHT - ((WIDTH / 6) * 6));
 app.stage.addChild(hud);
 
-const gold: number = 0;
+var gold: number = 0;
 const goldText: Text = new Text(`${gold}`, { fontSize: 24, fill: 0xFF0000 });
 goldText.x = 20;
 goldText.y = 20;
 app.stage.addChild(goldText);
 
-const getChildByName = (name: string) => 
-	app.stage.children.find(x => x.name === name);
+const widthText: Text = new Text(`w:${WIDTH} - h:${HEIGHT} - new:${HEIGHT / window.devicePixelRatio}`, { fontSize: 24, fill: 0xFF0000 });
+goldText.x = 100;
+goldText.y = 20;
+app.stage.addChild(widthText);
 
-app.loader.add("sword", "./assets/gladius.svg");
-app.loader.add("coin", "./assets/coin.svg");
-app.loader.add("healthPotion", "./assets/health-potion.svg");
-app.loader.add("shield", "./assets/shield.svg");
-app.loader.add("skull", "./assets/skull-white-detail.svg");
+const getChildByName = (name: string) => {
+	return app.stage.children.find((t: DisplayObject) => {
+		const ts = t as TileSprite;
+		return ts.name === name;
+	});
+}
+
+app.loader.add("sword", sword);
+app.loader.add("coin", coin);
+app.loader.add("healthPotion", potion);
+app.loader.add("shield", shield);
+app.loader.add("skull", enemy);
 
 var tiles: Array<TileSprite> = [];
 
+var isDragging = false;
+
 app.stage.addListener("startDragging", (args: { id: number, offset: number }) => {
-	const tile: TileSprite | undefined = app.stage.children.find<TileSprite>((t: TileSprite) => t.id == args.id) as TileSprite;
-	updateSelectionLine(tile);
+	isDragging = true;
+	const tile = app.stage.children.find((t: DisplayObject) => {
+		const ts = t as TileSprite;
+		return ts.id == args.id 
+	});
+	updateSelectionLine(tile as TileSprite);
 });
 
 app.stage.addListener("stopDragging", (args) => {
+	isDragging = false;
 	points = [];
 	selectionLine.position.x = 0;
 	selectionLine.position.y = 0;
@@ -86,8 +117,8 @@ app.stage.addListener("stopDragging", (args) => {
 	fillLine.position.y = 0;
 	app.stage.removeChild(selectionLine);
 	app.stage.removeChild(fillLine);
-	app.stage.removeChild(getChildByName("startPoint"));
-	app.stage.removeChild(getChildByName("joiningPoint"));
+	app.stage.removeChild(getChildByName("startPoint")!);
+	app.stage.removeChild(getChildByName("joiningPoint")!);
 	if (selectedTiles.length > 2)
 		replaceTiles();
 	else 
@@ -95,29 +126,35 @@ app.stage.addListener("stopDragging", (args) => {
 });
 
 app.stage.addListener("addOverTile", (args) => {
-	let tile = app.stage.children.find(t => t.id == args.id);
-	if (!selectedTiles.some(x => x === tile)) { //Check if this is a valid tile
-		updateSelectionLine(tile);
-	} else if (selectedTiles.length > 1) { //Check if this is the previously selected tile
-		if (args.id == selectedTiles[selectedTiles.length - 2].id) {
-			selectedTiles.pop();
-			points.pop();
-			updateSelectionLine(selectedTiles[selectedTiles.length - 1], true);
+	if (isDragging) {
+		const tile = app.stage.children.find((t: DisplayObject) => {
+			const ts = t as TileSprite;
+			return ts.id == args.id 
+		});
+		if (!selectedTiles.some(x => x === tile)) { //Check if this is a valid tile
+			updateSelectionLine(tile as TileSprite);
+		} else if (selectedTiles.length > 1) { //Check if this is the previously selected tile
+			if (args.id == selectedTiles[selectedTiles.length - 2].id) {
+				selectedTiles.pop();
+				points.pop();
+				updateSelectionLine(selectedTiles[selectedTiles.length - 1], true);
+			}
 		}
 	}
+	
 });
 
-const addTile = (tile) => {
+const addTile = (tile: TileSprite) => {
 	selectedTiles.push(tile);
 }
 
-var selectedTiles = [];
-var points = [];
-var selectionLine;
-var fillLine;
-var currentTileType = null;
+var selectedTiles: Array<TileSprite> = [];
+var points: Array<Array<number>> = [];
+var selectionLine: Graphics;
+var fillLine: Graphics;
+var currentTileType: string | null = null;
 
-const updateSelectionLine = (obj, remove = false) => {
+const updateSelectionLine = (obj: TileSprite, remove = false) => {
 	if (selectionLine) {
 		selectionLine.destroy();
 		fillLine.destroy();
@@ -125,7 +162,7 @@ const updateSelectionLine = (obj, remove = false) => {
 
 	selectionLine = new Graphics();
 	selectionLine.name = "line";
-	let ops = {};
+	let ops = { color: 0, width: 0, cap: LINE_CAP.ROUND, join: LINE_JOIN.ROUND, alignment: 0 };
 	ops.color = 0x000000;
 	ops.width = 18;
 	ops.cap = LINE_CAP.ROUND;
@@ -138,7 +175,7 @@ const updateSelectionLine = (obj, remove = false) => {
 
 	fillLine = new Graphics();
 	fillLine.name = "line";
-	let fOps = {};
+	let fOps = { color: 0, width: 0, cap: LINE_CAP.ROUND, join: LINE_JOIN.ROUND, alignment: 0 };
 	fOps.color = 0xFFFFFF;
 	fOps.width = 7;
 	fOps.cap = LINE_CAP.ROUND;
@@ -153,16 +190,11 @@ const updateSelectionLine = (obj, remove = false) => {
 		selectionLine.moveTo(obj.x, obj.y);
 		fillLine.moveTo(obj.x, obj.y);
 		currentTileType = obj.tileType;
-
 		points.push([obj.x, obj.y]);
 		addTile(obj);
 	} else {
 		let xDistanceDiff = obj.x - points[points.length - 1][0];
 		let yDistanceDiff = obj.y - points[points.length - 1][1];
-
-		if (obj.x == points[points.length - 1][0] && obj.y == points[points.length - 1][1]) {
-			console.log("back step");
-		}
 
 		if (yDistanceDiff > 85 || yDistanceDiff < -(85) || xDistanceDiff > 85 || xDistanceDiff < -(85)) {
 			console.log("DISTANCE TOO LARGE");
@@ -172,7 +204,9 @@ const updateSelectionLine = (obj, remove = false) => {
 				selectionLine.lineTo(point[0], point[1]);
 				fillLine.lineTo(point[0], point[1]);
 			});
-		} else if (obj.tileType !== currentTileType) {
+		} else if (obj.tileType !== currentTileType && 
+				!(obj.tileType == "enemy" && currentTileType == "combat") && 
+				!(obj.tileType == "combat" && currentTileType == "enemy")) {
 			console.log("WRONG TILE TYPE");
 			selectionLine.moveTo(points[0][0], points[0][1]);
 			fillLine.moveTo(points[0][0], points[0][1]);
@@ -198,46 +232,64 @@ const updateSelectionLine = (obj, remove = false) => {
 	}
 }
 
-const replaceTiles = () => {
+const replaceTiles = () => { //Happens after the player makes a move (removes their finger from dragging)
 	console.log(selectedTiles);
 	gold += selectedTiles.length;
 	goldText.text = `${gold}`;
+
+	const tilesToReplace: TileSprite[] = [];
+
+	const baseDamage = 3 + selectedTiles.filter(x => x.tileName === "sword").length;
+
 	selectedTiles.forEach((tile, index) => {
-		app.stage.removeChild(tile);
+		switch(tile.tileType) {
+			case "enemy": 
+				let currentTile = tile as EnemyTile;
+				currentTile.updateHp(baseDamage);
+				if (currentTile.currentHp <= 0) {
+					app.stage.removeChild(tile);
+					tilesToReplace.push(tile);
+				}
+				break;
+			default: 
+				app.stage.removeChild(tile);
+				tilesToReplace.push(tile);
+				break;
+		}
 	});
 	
 	//This probably isnt gonna be pretty
-	let sideLength = Math.floor(app.screen.width / 6);
+	let sideLength = Math.floor(WIDTH / 6);
 	let col1, col2, col3, col4, col5, col6;
-	col1 = selectedTiles.filter(x => x.x === (sideLength / 2) * 1);
-	col2 = selectedTiles.filter(x => x.x === (sideLength / 2) + sideLength);
-	col3 = selectedTiles.filter(x => x.x === (sideLength / 2) + (sideLength * 2));
-	col4 = selectedTiles.filter(x => x.x === (sideLength / 2) + (sideLength * 3));
-	col5 = selectedTiles.filter(x => x.x === (sideLength / 2) + (sideLength * 4));
-	col6 = selectedTiles.filter(x => x.x === (sideLength / 2) + (sideLength * 5));
+	col1 = tilesToReplace.filter(x => x.x === (sideLength / 2) * 1);
+	col2 = tilesToReplace.filter(x => x.x === (sideLength / 2) + sideLength);
+	col3 = tilesToReplace.filter(x => x.x === (sideLength / 2) + (sideLength * 2));
+	col4 = tilesToReplace.filter(x => x.x === (sideLength / 2) + (sideLength * 3));
+	col5 = tilesToReplace.filter(x => x.x === (sideLength / 2) + (sideLength * 4));
+	col6 = tilesToReplace.filter(x => x.x === (sideLength / 2) + (sideLength * 5));
 
 	col1.forEach((t, index) => {
-		let newTile = new TileSprite(t.id, 0, 250 + (-(70) * (index + 1)), sideLength, app);
+		let newTile = TileFactory(t.id, 0, 250 + (-(70) * (index + 1)));
 		app.stage.addChild(newTile);
 	});
 	col2.forEach((t, index) => {
-		let newTile = new TileSprite(t.id, sideLength, 250 + (-(70) * (index + 1)), sideLength, app);
+		let newTile = TileFactory(t.id, sideLength, 250 + (-(70) * (index + 1)));
 		app.stage.addChild(newTile);
 	});
 	col3.forEach((t, index) => {
-		let newTile = new TileSprite(t.id, sideLength * 2, 250 + (-(70) * (index + 1)), sideLength, app);
+		let newTile = TileFactory(t.id, sideLength * 2, 250 + (-(70) * (index + 1)));
 		app.stage.addChild(newTile);
 	});
 	col4.forEach((t, index) => {
-		let newTile = new TileSprite(t.id, sideLength * 3, 250 + (-(70) * (index + 1)), sideLength, app);
+		let newTile = TileFactory(t.id, sideLength * 3, 250 + (-(70) * (index + 1)));
 		app.stage.addChild(newTile);
 	});
 	col5.forEach((t, index) => {
-		let newTile = new TileSprite(t.id, sideLength * 4, 250 + (-(70) * (index + 1)), sideLength, app);
+		let newTile = TileFactory(t.id, sideLength * 4, 250 + (-(70) * (index + 1)));
 		app.stage.addChild(newTile);
 	});
 	col6.forEach((t, index) => {
-		let newTile = new TileSprite(t.id, sideLength * 5, 250 + (-(70) * (index + 1)), sideLength, app);
+		let newTile = TileFactory(t.id, sideLength * 5, 250 + (-(70) * (index + 1)));
 		app.stage.addChild(newTile);
 	});
 
@@ -251,9 +303,15 @@ const replaceTiles = () => {
 	selectedTiles = [];
 }
 
+export const tileBoardMask: Graphics = new Graphics();
+tileBoardMask.beginFill(0x000000);
+tileBoardMask.drawRect(0, HEIGHT - ((WIDTH / 6) * 6), 475, (WIDTH / 6) * 6);
+
+export const sideLength = Math.floor(WIDTH / 6);
+
 let rect = new Graphics();
 rect.lineStyle(2, 0x000000, 1);
-rect.drawRect(0, 0, app.screen.width, app.screen.height);
+rect.drawRect(0, 0, WIDTH, HEIGHT);
 app.stage.addChild(rect);
 
 app.loader.load(() => {
@@ -261,12 +319,11 @@ app.loader.load(() => {
 
 	app.renderer.plugins.interaction.moveWhenInside = true;
 
-	let sideLength = Math.floor(app.screen.width / 6);
 
 	let c = 0;
 	for (let x = 0; x < 6; x++) {
 		for (let y = 0; y < 6; y++) {
-			let t = new TileSprite(c, x*sideLength, y*sideLength, sideLength, app);
+			let t = TileFactory(c, x*sideLength, y*sideLength);
 			tiles.push(t);
 			app.stage.addChild(t);
 			c++;
@@ -274,8 +331,6 @@ app.loader.load(() => {
 	}
 
 	app.ticker.add(delta => {
-		TileGravityAndCollision(app.stage.children.filter(x => x.name === "gameTile"));
+		TileGravityAndCollision(app.stage.children.filter(x => x.name === "gameTile") as Container[]);
 	});
 });
-
-console.log(app.screen.width)

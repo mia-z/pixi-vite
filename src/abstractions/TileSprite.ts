@@ -1,41 +1,25 @@
-import { Sprite,
-    Texture, 
+import { Texture, 
     Circle, 
-    Graphics, 
-    DisplayObject,
-    Application
+    Sprite
 } from "pixi.js";
 
-import { Random } from "../utils";
+import { tileBoardMask, sideLength } from "../main";
 
-let sideLength = window.innerWidth / 6;
-
-const TileTypeGenerator = () => {
-    let r = Random(1, 5);
-    switch(r) {
-        case 1: return [ "sword", "combat" ];
-        case 2: return [ "coin", "currency" ];
-        case 3: return [ "healthPotion", "healing" ];
-        case 4: return [ "shield", "defence" ];
-        case 5: return [ "skull", "combat" ];
-        default: throw new Error("INVALID RANDOM NUMBER")
-    }
-}
-
-export class TileSprite extends Sprite { 
+export class TileSprite extends Sprite {
     tileType: string;
     tileName: string;
     gravity: number;
     id: number;
-    constructor(id: number, xPos: number, yPos: number, sideLength: number, appContext: Application) {
+
+    constructor(id: number, xPos: number, yPos: number, seed: [string, string]) {
         super();
-        let seed = TileTypeGenerator();
+        this.sortDirty = true;
         this.texture = Texture.from(seed[0]);
         this.tileType = seed[1];
         this.tileName = seed[0]; 
         this.width = sideLength;
         this.height = sideLength;
-        this.anchor.set(0.5, 0.5)
+        this.anchor.set(0.5, 0.5);
         this.x = xPos + (sideLength / 2);
         this.y = yPos;
         this.gravity = 0.4;
@@ -46,12 +30,8 @@ export class TileSprite extends Sprite {
 		this.on('pointerup', this.onDragEnd);
 		this.on('pointerupoutside', this.onDragEnd);
 		this.on('pointermove', this.onDragMove);
-        this.hitArea = new Circle(0, 0, (sideLength / 5) * 4);
-        
-        let mask = new Graphics();
-        mask.beginFill(0x000000);
-        mask.drawRect(0, appContext.screen.height - ((appContext.screen.width / 6) * 6), 500, 622);
-        this.mask = mask;
+        this.hitArea = new Circle(0, 0, (sideLength / 5) * 4);        
+        this.mask = tileBoardMask;
 
         // // Debug hitbox draw
         // let box = new Graphics();
